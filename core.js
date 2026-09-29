@@ -1,7 +1,7 @@
 // 长空·1951 网页版 — 共享核心：噪声地形 / 硝烟光影 / 程序化士兵与枪械 (Three.js r160)
 import * as THREE from 'three';
 
-export const BUILD = '1.9.5-web';
+export const BUILD = '1.9.6-web';
 
 /* ---------------- 确定性柏林/fBm ---------------- */
 export function hash2(x, z) { const n = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return n - Math.floor(n); }
@@ -43,6 +43,7 @@ export function starTex() {
 /* ---------------- 世界构建：渲染器/天穹/光影/地形/树林/烟柱 ---------------- */
 export function buildWorld(Q, opts = {}) {
   const ground = opts.ground === true;
+  const themeName = opts.theme || 'dusk';
   const cfg = ground
     ? (Q === 'pc'
       ? { seg: 150, pr: 2, shadows: true, smoke: 16, trees: 240, fog: .0018, expo: 1.14 }
@@ -50,6 +51,14 @@ export function buildWorld(Q, opts = {}) {
     : (Q === 'pc'
       ? { seg: 200, pr: 2, shadows: true, smoke: 30, trees: 340, fog: .00092, expo: 1.06 }
       : { seg: 110, pr: 1.3, shadows: false, smoke: 14, trees: 160, fog: .00125, expo: 1.0 });
+
+  /* 战役光照/天气主题：黄昏硝烟 / 白昼 / 长津湖月夜 / 雪原 */
+  const TH = {
+    dusk: { sky: [0x56534e, 0x7c7367, 0xb0946e], fog: 0x8c806d, fogM: 1.0, sun: 0xeccfa0, sunI: ground ? 1.85 : 1.5, hemiSky: 0xa89f92, hemiGnd: 0x35312a, hemiI: ground ? 1.12 : .9, amb: 0x6a6258, ambI: ground ? .5 : .25, glow: 0xffe1aa, glowS: 900, mul: 1.0, tint: null, mix: 0, stars: false, fillI: 0 },
+    day:  { sky: [0x7088aa, 0xa6b7c6, 0xddcba8], fog: 0xaab7c1, fogM: .92, sun: 0xfff2d6, sunI: 2.15, hemiSky: 0xc6d0dd, hemiGnd: 0x4a463c, hemiI: 1.05, amb: 0x8b8d86, ambI: .44, glow: 0xfff4d2, glowS: 760, mul: 1.07, tint: null, mix: 0, stars: false, fillI: 0 },
+    night:{ sky: [0x0a1020, 0x1c2740, 0x453b52], fog: 0x181f30, fogM: 1.12, sun: 0xbcd2f5, sunI: 1.15, hemiSky: 0x4a5a82, hemiGnd: 0x1a2030, hemiI: .82, amb: 0x3b4763, ambI: .42, glow: 0xcddbff, glowS: 380, mul: .72, tint: 0x33405f, mix: .36, stars: true, fillI: 16, snow: true },
+    snow: { sky: [0x8895a9, 0xb7c3d1, 0xe6e4dc], fog: 0xcbd5e0, fogM: 1.06, sun: 0xf5f7ff, sunI: 1.75, hemiSky: 0xcdd7e5, hemiGnd: 0x6f7480, hemiI: 1.18, amb: 0xb9c2cf, ambI: .6, glow: 0xf6f9ff, glowS: 700, mul: 1.04, tint: 0xe8eff8, mix: .78, stars: false, fillI: 0, snow: true },
+  }[themeName];
 
   const canvas = document.createElement('canvas'); canvas.id = 'cv';
   canvas.style.cssText = 'position:fixed;inset:0;width:100vw!important;height:100vh!important;display:block';
@@ -65,34 +74,68 @@ export function buildWorld(Q, opts = {}) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(ground ? 0x8c806d : 0x8a7d68, cfg.fog);
+  scene.fog = new THREE.FogExp2(TH.fog, cfg.fog * TH.fogM);
   const camera = new THREE.PerspectiveCamera(ground ? 72 : 68, innerWidth / innerHeight, .1, 9000);
   scene.add(camera);
   addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
-  // 硝烟天穹（三段渐变 + 冷灰顶 / 焦橙地平线）
+  // 天穹（三段渐变，颜色随战役主题）
   const skyMat = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { top: { value: new THREE.Color(0x56534e) }, mid: { value: new THREE.Color(0x7c7367) }, bot: { value: new THREE.Color(0xb0946e) } },
+    uniforms: { top: { value: new THREE.Color(TH.sky[0]) }, mid: { value: new THREE.Color(TH.sky[1]) }, bot: { value: new THREE.Color(TH.sky[2]) } },
     vertexShader: `varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
     fragmentShader: `varying vec3 vP; uniform vec3 top,mid,bot;
       void main(){ float t=normalize(vP).y; vec3 c=mix(bot,mid,smoothstep(-.18,.25,t)); c=mix(c,top,smoothstep(.18,.75,t)); gl_FragColor=vec4(c,1.0);} `
   });
   scene.add(new THREE.Mesh(new THREE.SphereGeometry(6200, 24, 14), skyMat));
-  // 朦胧太阳盘
-  const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTex([[0, 'rgba(255,225,170,.55)'], [1, 'rgba(255,225,170,0)']], 128), transparent: true, depthWrite: false, fog: false }));
-  sunGlow.scale.setScalar(900); scene.add(sunGlow);
 
-  const hemi = new THREE.HemisphereLight(0xa89f92, 0x35312a, ground ? 1.12 : .9); scene.add(hemi);
-  const amb = new THREE.AmbientLight(0x6a6258, ground ? .5 : .25); scene.add(amb);
-  const sun = new THREE.DirectionalLight(0xeccfa0, ground ? 1.85 : 1.5);
+  // 星空（夜战，圆形柔和星点）
+  if (TH.stars) {
+    const PN = 800, pg = new THREE.BufferGeometry(), sp = [];
+    for (let i = 0; i < PN; i++) { const a = Math.random() * Math.PI * 2, e = Math.random() * Math.PI * .48 + .08, r = 5600; sp.push(Math.cos(e) * Math.cos(a) * r, Math.sin(e) * r, Math.cos(e) * Math.sin(a) * r); }
+    pg.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
+    const starDot = radialTex([[0, 'rgba(255,255,255,1)'], [.4, 'rgba(225,235,255,.8)'], [1, 'rgba(225,235,255,0)']], 32);
+    scene.add(new THREE.Points(pg, new THREE.PointsMaterial({ map: starDot, color: 0xdfe8ff, size: 3.4, sizeAttenuation: false, transparent: true, depthWrite: false, opacity: .95, fog: false })));
+  }
+
+  // 太阳 / 月亮盘
+  const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTex([[0, themeName === 'night' ? 'rgba(205,220,255,.7)' : 'rgba(255,225,170,.55)'], [1, 'rgba(255,225,170,0)']], 128), transparent: true, depthWrite: false, fog: false }));
+  sunGlow.scale.setScalar(TH.glowS); scene.add(sunGlow);
+
+  const hemi = new THREE.HemisphereLight(TH.hemiSky, TH.hemiGnd, TH.hemiI); scene.add(hemi);
+  const amb = new THREE.AmbientLight(TH.amb, TH.ambI); scene.add(amb);
+  const sun = new THREE.DirectionalLight(TH.sun, TH.sunI);
   if (cfg.shadows) {
-    sun.castShadow = true; sun.shadow.mapSize.set(ground ? 2048 : 2048, 2048);
+    sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
     const R = ground ? 90 : 420;
     sun.shadow.camera.left = -R; sun.shadow.camera.right = R; sun.shadow.camera.top = R; sun.shadow.camera.bottom = -R;
     sun.shadow.camera.far = ground ? 320 : 1400; sun.shadow.camera.bias = -0.0007; sun.shadow.normalBias = .02;
   }
   scene.add(sun); scene.add(sun.target);
+
+  // 夜战：跟随玩家的暖色环境补光（阵地火光映在身边，避免死黑）
+  const fillLight = new THREE.PointLight(0xffb074, TH.fillI, 72, 2);
+  if (TH.fillI > 0) scene.add(fillLight);
+
+  // 动态点光源池：爆炸 / 炮口焰真实照亮周围
+  const POOLN = Q === 'pc' ? 8 : 4, lpool = [];
+  for (let i = 0; i < POOLN; i++) { const l = new THREE.PointLight(0xffc58a, 0, 30, 2); l.visible = false; scene.add(l); lpool.push({ l, life: 0, dur: 1, max: 0 }); }
+  let li = 0;
+  function flashLight(p, color = 0xffc58a, intensity = 3, dist = 28, life = .2) {
+    const s = lpool[li % POOLN]; li++;
+    s.l.position.copy(p); s.l.color.set(color); s.l.distance = dist; s.max = intensity; s.l.intensity = intensity; s.life = life; s.dur = life; s.l.visible = true;
+  }
+
+  // 飘雪（夜战/雪原）：跟随玩家移动的局部降雪盒
+  let snowArr = null, snowPts = null, SN = 0;
+  if (TH.snow) {
+    SN = Q === 'pc' ? 700 : 360;
+    snowArr = new Float32Array(SN * 3);
+    for (let i = 0; i < SN; i++) { snowArr[i * 3] = (Math.random() - .5) * 120; snowArr[i * 3 + 1] = Math.random() * 46; snowArr[i * 3 + 2] = (Math.random() - .5) * 120; }
+    const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(snowArr, 3));
+    snowPts = new THREE.Points(sg, new THREE.PointsMaterial({ map: radialTex([[0, 'rgba(255,255,255,1)'], [1, 'rgba(255,255,255,0)']], 16), color: 0xeef3ff, size: .55, transparent: true, depthWrite: false, opacity: .9 }));
+    snowPts.frustumCulled = false; scene.add(snowPts);
+  }
 
   /* 地形 */
   const GS = 5200, SEG = cfg.seg;
@@ -104,6 +147,8 @@ export function buildWorld(Q, opts = {}) {
     let cc;
     if (y > 150) cc = cS.clone();
     else { const p = fbm(x * .02 + 5, z * .02 + 5); cc = cA.clone().lerp(cB, Math.min(1, .3 + p * .8)); if (p < .045) cc.lerp(cR, .78); }
+    if (TH.mul !== 1.0) cc.multiplyScalar(TH.mul);
+    if (TH.tint !== null) cc.lerp(new THREE.Color(TH.tint), TH.mix);
     cols.push(cc.r, cc.g, cc.b);
   }
   tg.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3)); tg.computeVertexNormals();
@@ -128,7 +173,8 @@ export function buildWorld(Q, opts = {}) {
       const gy = groundH(x, z); if (gy > 148) continue;
       const slope = Math.abs(groundH(x + 8, z) - groundH(x - 8, z)) + Math.abs(groundH(x, z + 8) - groundH(x, z - 8));
       if (slope > 26) continue;
-      const burned = gy < 90 && hash2(gx + 3, gz + 8) > .8, snowy = gy > 95;
+      const snowLine = themeName === 'snow' ? 36 : themeName === 'night' ? 58 : 95;
+      const burned = themeName === 'snow' ? (gy < 56 && hash2(gx + 3, gz + 8) > .9) : (gy < 90 && hash2(gx + 3, gz + 8) > .8), snowy = gy > snowLine;
       dm.position.set(x, gy + 3, z); dm.scale.set(1, burned ? 1.7 : 1, 1); dm.rotation.y = hash2(gx, gz) * 3; dm.updateMatrix(); trI.setMatrixAt(k, dm.matrix);
       trees.push({ x, z, r: 1.2 });
       if (!burned) {
@@ -166,6 +212,7 @@ export function buildWorld(Q, opts = {}) {
       s.position.copy(p); s.scale.setScalar((11 + Math.random() * 18) * sc); scene.add(s);
       bursts.push({ s, life: .55 + Math.random() * .45 });
     }
+    flashLight(p, 0xff9a4a, (Q === 'pc' ? 3.8 : 2.5) * Math.min(2.2, sc), 30 * sc, .22);
   }
   const smokeCount = ground ? cfg.smoke : cfg.smoke;
   for (let i = 0; i < smokeCount; i++) addPlume((Math.random() - .5) * (ground ? 900 : 2800), -(ground ? 120 : 300) - Math.random() * (ground ? 520 : 2400), i % 6 === 0);
@@ -177,17 +224,26 @@ export function buildWorld(Q, opts = {}) {
     const dt = Math.min(.045, (now - last) / 1000); last = now;
     for (const p of plumes) { if (p.vy > 0) { p.life -= dt; p.s.position.y += p.vy * dt; p.s.material.opacity = .32 + Math.sin(p.life * 3) * .1; } }
     for (let i = bursts.length - 1; i >= 0; i--) { const z = bursts[i]; z.life -= dt * 1.7; z.s.scale.multiplyScalar(1.02); z.s.material.opacity = Math.max(0, z.life); if (z.life <= 0) { scene.remove(z.s); bursts.splice(i, 1); } }
+    for (const s of lpool) { if (s.life > 0) { s.life -= dt; s.l.intensity = s.max * Math.max(0, s.life / s.dur); if (s.life <= 0) s.l.visible = false; } }
+    if (snowPts) {
+      const pa2 = snowPts.geometry.attributes.position;
+      for (let i = 0; i < SN; i++) { let y = pa2.getY(i) - 3.4 * dt, x = pa2.getX(i) + .5 * dt; if (y < -2) { y = 44; x = (Math.random() - .5) * 120; } pa2.setY(i, y); pa2.setX(i, x); }
+      pa2.needsUpdate = true; snowPts.position.set(camera.position.x, camera.position.y - 2, camera.position.z);
+    }
     sunGlow.position.copy(camera.position).add(new THREE.Vector3(-0.5, .45, -1).normalize().multiplyScalar(4000));
     if (updateFn) updateFn(dt);
     renderer.render(scene, camera);
   }
   requestAnimationFrame(frame);
 
-  return { Q, cfg, renderer, scene, camera, groundH, trees, addPlume, boom, fxSmoke, fxFire,
+  return { Q, cfg, renderer, scene, camera, groundH, trees, addPlume, boom, fxSmoke, fxFire, flashLight,
+    theme: themeName,
     followLight(x, y, z) {
-      // 太阳置于玩家侧后方（玩家朝 -z 进攻），照亮迎面山坡而不是打成逆光黑影
+      // 太阳/月亮置于玩家侧后方（玩家朝 -z 进攻），照亮迎面山坡
       sun.position.set(x + 70, y + 230, z + 150); sun.target.position.set(x, y, z - 120);
-      sunGlow.position.set(x + 240, y + 360, z + 480);
+      if (themeName === 'night') sunGlow.position.set(x - 520, y + 1500, z - 950);
+      else sunGlow.position.set(x + 240, y + 360, z + 480);
+      if (TH.fillI > 0) fillLight.position.set(x + 5, y + 11, z + 9);
     },
     setUpdate(fn) { updateFn = fn; } };
 }
