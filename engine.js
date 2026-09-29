@@ -2,7 +2,7 @@
 // 电脑版 / 手机版两套画质与操控共用本文件。
 import * as THREE from 'three';
 
-export const BUILD = '1.9.4-web';
+export const BUILD = '1.9.5-web';
 
 /* ---------------- 确定性噪声（与桌面端同思路的柏林/fBm） ---------------- */
 function hash2(x, z) { const n = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return n - Math.floor(n); }
@@ -114,9 +114,43 @@ function makeAAA() {
   return g;
 }
 
-/* ---------------- 主入口 ---------------- */
+/* ---------------- 模式选择 ---------------- */
 export function initGame(quality) {
   const Q = quality;                         // 'pc' | 'mobile'
+  if (location.search.includes('ground')) { import('./ground.js').then(m => m.initGround(Q)); return; }
+  if (!location.search.includes('air')) { showSelect(Q); return; }
+  startAir(Q);
+}
+
+function showSelect(Q) {
+  document.body.classList.add(Q === 'pc' ? 'pc' : 'mobile');
+  document.body.innerHTML =
+    `<div style="position:fixed;inset:0;overflow:auto;background:
+       radial-gradient(100% 70% at 50% -10%,rgba(180,140,90,.25),transparent 60%),
+       linear-gradient(180deg,#2b2e36,#16191f);color:#f0e6d2;
+       font-family:'PingFang SC','Microsoft YaHei',system-ui,sans-serif">
+      <div style="max-width:860px;margin:0 auto;padding:7vh 20px 40px;text-align:center">
+        <div style="font-size:clamp(32px,7vw,54px);color:#ffd77a;letter-spacing:12px">长 空 · 1951</div>
+        <div style="opacity:.65;letter-spacing:3px;font-size:13px;margin:8px 0 4px">J-20 SKIES OVER KOREA · ${Q === 'pc' ? '网页电脑版' : '网页手机版'} · 选择作战方式</div>
+        <div style="color:#e7c98e;letter-spacing:4px;font-size:15px;margin-bottom:36px">铭记历史 · 珍爱和平 · 吾辈自强</div>
+        <div style="display:flex;gap:22px;justify-content:center;flex-wrap:wrap">
+          <a href="?air" style="flex:1 1 280px;max-width:360px;display:block;text-decoration:none;color:inherit;background:rgba(0,0,0,.34);border:1px solid rgba(255,210,140,.32);border-radius:16px;padding:30px 22px">
+            <div style="font-size:44px">✈️</div><h2 style="color:#ffd77a;letter-spacing:4px;margin:8px 0">空战 · 歼-20</h2>
+            <p style="opacity:.78;font-size:13.5px;line-height:1.9">驾驶歼-20 迎击 F-86 机群与地面高射火力<br>机炮连射 · 追踪导弹 · 波次来袭</p>
+            <span style="display:inline-block;margin-top:10px;background:linear-gradient(180deg,#d23b2c,#9c2318);color:#fff;letter-spacing:5px;padding:11px 36px;border-radius:30px">升 空 迎 敌</span>
+          </a>
+          <a href="?ground" style="flex:1 1 280px;max-width:360px;display:block;text-decoration:none;color:inherit;background:rgba(0,0,0,.34);border:1px solid rgba(255,210,140,.32);border-radius:16px;padding:30px 22px">
+            <div style="font-size:44px">🪖</div><h2 style="color:#ffd77a;letter-spacing:4px;margin:8px 0">陆战 · 步兵冲锋</h2>
+            <p style="opacity:.78;font-size:13.5px;line-height:1.9">第一人称随志愿军夺取高地<br>步枪/AKM/大刀/手雷 · 战友 AI 协同 · 重新建模的士兵</p>
+            <span style="display:inline-block;margin-top:10px;background:linear-gradient(180deg,#d23b2c,#9c2318);color:#fff;letter-spacing:5px;padding:11px 36px;border-radius:30px">冲 锋 夺 旗</span>
+          </a>
+        </div>
+        <div style="margin-top:34px;font-size:12.5px;opacity:.6"><a style="color:#ffd77a" href="index.html">← 返回选版</a>　·　桌面完整版见 GitHub Releases</div>
+      </div></div>`;
+}
+
+/* ---------------- 空战（原有模式） ---------------- */
+function startAir(Q) {
   const cfg = Q === 'pc'
     ? { seg: 200, pr: 2, shadows: true, smoke: 30, trees: 340, fog: .00092, expo: 1.06 }
     : { seg: 110, pr: 1.3, shadows: false, smoke: 14, trees: 160, fog: .00125, expo: 1.0 };
