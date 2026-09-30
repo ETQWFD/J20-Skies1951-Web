@@ -2,7 +2,7 @@
 // 电脑版 / 手机版两套画质与操控共用本文件。
 import * as THREE from 'three';
 
-export const BUILD = '1.9.6-web';
+export const BUILD = '1.9.7-web';
 
 /* ---------------- 确定性噪声（与桌面端同思路的柏林/fBm） ---------------- */
 function hash2(x, z) { const n = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return n - Math.floor(n); }

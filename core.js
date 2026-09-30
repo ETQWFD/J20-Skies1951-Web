@@ -1,7 +1,7 @@
 // 长空·1951 网页版 — 共享核心：噪声地形 / 硝烟光影 / 程序化士兵与枪械 (Three.js r160)
 import * as THREE from 'three';
 
-export const BUILD = '1.9.6-web';
+export const BUILD = '1.9.7-web';
 
 /* ---------------- 确定性柏林/fBm ---------------- */
 export function hash2(x, z) { const n = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return n - Math.floor(n); }

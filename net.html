@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>长空·1951 · 联机战场</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+  html,body { height:100%; overflow:hidden; background:#0b0e13; font-family:"PingFang SC","Microsoft YaHei",sans-serif; color:#e9e2d0; }
+  canvas { position:fixed; inset:0; }
+  .hidden { display:none !important; }
+
+  /* ---------- 大厅 ---------- */
+  #lobby { position:fixed; inset:0; z-index:60; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:radial-gradient(1200px 700px at 50% -10%, #20262f 0%, #0b0e13 70%); padding:24px; text-align:center; }
+  #lobby h1 { font-size:30px; letter-spacing:10px; color:#f0d9a6; font-weight:800; text-indent:10px; }
+  #lobby .sub { margin-top:8px; font-size:13px; color:#8d93a0; letter-spacing:3px; }
+  .lbox { margin-top:30px; width:min(420px,92vw); background:#12171ecc; border:1px solid #333b46; border-radius:16px; padding:22px; }
+  .lbox input { width:100%; padding:13px 14px; border-radius:10px; border:1px solid #3a434f; background:#0c1016; color:#eee; font-size:16px; outline:none; }
+  .lbox .row { display:flex; gap:12px; margin-top:14px; }
+  .btn { flex:1; padding:14px 0; border:none; border-radius:11px; font-size:17px; font-weight:700; color:#fff; cursor:pointer; }
+  .btn.red { background:linear-gradient(180deg,#c0392b,#922b20); }
+  .btn.amb { background:linear-gradient(180deg,#37424f,#222a33); }
+  #ltip { margin-top:16px; font-size:12px; line-height:1.8; color:#7d8491; }
+  #lstat { margin-top:14px; font-size:13px; color:#d8b26a; min-height:20px; word-break:break-all; }
+
+  /* ---------- HUD ---------- */
+  #hud { position:fixed; inset:0; z-index:5; pointer-events:none; }
+  .flag { width:46px; height:30px; border-radius:3px; box-shadow:0 2px 6px #0008; display:flex; align-items:center; justify-content:center;
+    font-size:9px; color:#ffe08a; font-weight:bold; }
+  #flags { position:absolute; top:10px; left:10px; display:flex; gap:6px; }
+  #f1 { background:#de2910; } #f2 { background:#c01824; }
+  #stats { position:absolute; top:12px; left:112px; font-size:16px; font-weight:700; text-shadow:0 1px 3px #000; }
+  #stats b { color:#ffe9b0; } #ai b{color:#ff8a7a;} #ally b{color:#8fc1ff;}
+  #obj { position:absolute; top:46px; width:100%; text-align:center; color:#ffd9c0; font-size:16px; font-weight:700; text-shadow:0 1px 4px #000; }
+  #ver { position:absolute; top:8px; right:12px; font-size:12px; color:#aab2bf88; }
+  #cross { position:absolute; left:50%; top:50%; width:22px; height:22px; transform:translate(-50%,-50%); opacity:.9; }
+  #cross:before,#cross:after { content:""; position:absolute; background:#e9e2d0; box-shadow:0 0 3px #000; }
+  #cross:before { left:50%; top:0; width:2px; height:100%; transform:translateX(-50%); }
+  #cross:after { top:50%; left:0; height:2px; width:100%; transform:translateY(-50%); }
+  /* 瞄准镜 */
+  #scope { position:absolute; left:50%; top:50%; width:0; height:0; opacity:0; transition:width .08s,height .08s,opacity .1s; pointer-events:none; }
+  #scope .ring { position:absolute; left:-230px; top:-230px; width:460px; height:460px; border-radius:50%;
+    box-shadow:0 0 0 2000px rgba(4,6,9,.97), inset 0 0 30px #000; border:3px solid #0a0d12; }
+  #scope .cv,#scope .ch { position:absolute; background:#0a0d12; }
+  #scope .cv { left:-1px; top:-210px; width:2px; height:420px; }
+  #scope .ch  { left:-210px; top:-1px; height:2px; width:420px; }
+  #scope .md { position:absolute; width:5px; height:5px; border-radius:50%; background:#0a0d12; }
+  #scope .md1{left:60px;top:-3px;} #scope .md2{left:-65px;top:-3px;} #scope .md3{left:-3px;top:60px;} #scope .md4{left:-3px;top:-65px;}
+  #hitmark { position:absolute; left:50%; top:50%; width:26px; height:26px; transform:translate(-50%,-50%) rotate(45deg); opacity:0; }
+  #hitmark:before,#hitmark:after { content:""; position:absolute; background:#ff5a4a; }
+  #hitmark:before{left:50%;top:0;width:2px;height:100%;transform:translateX(-50%);} #hitmark:after{top:50%;left:0;height:2px;width:100%;transform:translateY(-50%);}
+  #feed { position:absolute; left:12px; bottom:14px; font-size:13px; line-height:1.5; text-shadow:0 1px 3px #000; max-width:60vw; }
+  #feed div { opacity:.95; } #feed .k{color:#ffb066;} #feed .d{color:#ff7a6b;} #feed .s{color:#9fd0ff;}
+  #ammo { position:absolute; right:16px; bottom:14px; text-align:right; font-weight:700; text-shadow:0 1px 3px #000; }
+  #hurt { position:absolute; inset:0; box-shadow:inset 0 0 120px 40px rgba(160,10,10,.55); opacity:0; transition:opacity .12s; }
+  #prompt { position:absolute; left:50%; bottom:26%; transform:translateX(-50%); background:#0009; padding:8px 16px; border-radius:10px; font-size:15px; }
+
+  /* ---------- 手机控件 ---------- */
+  body.pc .mob { display:none !important; }
+  #jz { position:absolute; left:26px; bottom:34px; width:132px; height:132px; border-radius:50%;
+    background:#ffffff18; border:2px solid #ffffff33; pointer-events:auto; touch-action:none; }
+  #knob { position:absolute; left:50%; top:50%; width:56px; height:56px; border-radius:50%; transform:translate(-50%,-50%);
+    background:#ffffff44; border:2px solid #ffffff66; }
+  .mbtn { position:absolute; border-radius:50%; background:#ffffff1c; border:2px solid #ffffff44; color:#fff;
+    font-size:19px; font-weight:700; display:flex; align-items:center; justify-content:center; pointer-events:auto; touch-action:none; }
+  #bFire { right:30px; bottom:70px; width:88px; height:88px; background:#c0392b66; border-color:#e07a6a; }
+  #bAds  { right:128px; bottom:140px; width:64px; height:64px; }
+  #bJump { right:34px; bottom:176px; width:64px; height:64px; }
+  #bPause { right:14px; top:10px; width:46px; height:46px; border-radius:50%; pointer-events:auto; font-size:20px; }
+  #look { position:absolute; inset:0; pointer-events:auto; touch-action:none; }
+  body.pc #look { pointer-events:none; }
+
+  /* ---------- 暂停/结算 ---------- */
+  .modal { position:fixed; inset:0; z-index:30; display:flex; align-items:center; justify-content:center; background:#000a; }
+  .card { background:#141a22; border:1px solid #333b46; border-radius:16px; padding:28px 30px; width:min(360px,90vw); text-align:center; }
+  .card h2 { color:#f0d9a6; letter-spacing:4px; margin-bottom:18px; }
+  .card .btn { width:100%; margin-top:12px; }
+  #over { z-index:40; } #over h1 { font-size:30px; color:#ffd98a; letter-spacing:6px; } #over p { margin-top:12px; color:#c8cdD6; font-size:14px; line-height:1.9; }
+</style>
+</head>
+<body>
+  <div id="lobby">
+    <h1>联 机 战 场</h1>
+    <div class="sub">J-20 SKIES OVER KOREA · 并肩歼敌</div>
+    <div class="lbox">
+      <input id="nm" maxlength="12" placeholder="你的代号（如：张中华）">
+      <div class="row">
+        <button class="btn red" id="bHost">创建房间</button>
+        <button class="btn amb" id="bJoin">加入房间</button>
+      </div>
+      <div id="lstat"></div>
+      <div id="ltip">
+        房主与战友须连同一 Wi-Fi，用<b>本服务器</b>地址打开本页（<span id="hosturl"></span>）。<br>
+        创建房间者的手机/电脑承担战局主机，队友点“加入房间”即可并肩作战。
+      </div>
+    </div>
+  </div>
+
+  <div id="hud" class="hidden">
+    <div id="flags"><div class="flag" id="f1">★★★★★</div><div class="flag" id="f2">八一</div></div>
+    <div id="stats"><span>生命 <b id="hp">100</b></span> &nbsp; <span id="ai">美军 <b>30</b></span> &nbsp; <span id="ally">战友 <b>1</b></span></div>
+    <div id="obj">目标：并肩歼灭来犯美军 30 人</div>
+    <div id="ver"></div>
+    <div id="cross"></div><div id="hitmark"></div>
+    <div id="scope">
+      <div class="ring"></div>
+      <div class="cv"></div><div class="ch"></div>
+      <div class="md md1"></div><div class="md md2"></div><div class="md md3"></div><div class="md md4"></div>
+    </div>
+    <div id="feed"></div>
+    <div id="ammo">莫辛-纳甘步枪</div>
+    <div id="hurt"></div>
+    <div id="prompt" class="hidden"></div>
+
+    <div id="look" class="mob"></div>
+    <div id="jz" class="mob"><div id="knob"></div></div>
+    <div class="mbtn mob" id="bFire">火</div>
+    <div class="mbtn mob" id="bAds">镜</div>
+    <div class="mbtn mob" id="bJump">跳</div>
+    <div class="mbtn" id="bPause">II</div>
+
+    <div id="po" class="modal hidden">
+      <div class="card">
+        <h2>已 暂 停</h2>
+        <button class="btn red" id="bResume">继续战斗</button>
+        <button class="btn amb" id="bQuit">离开房间</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="over" class="modal hidden">
+    <div class="card">
+      <h1 id="overTitle">胜 利</h1>
+      <p id="overTxt"></p>
+      <button class="btn red" id="overBtn">返回大厅</button>
+    </div>
+  </div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module" src="./netplay.js"></script>
+</body>
+</html>
