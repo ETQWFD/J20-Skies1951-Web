@@ -1,6 +1,7 @@
 // 长空·1951 网页版 — 陆战：四战役 · 载具 · 阵地 · 敌机轰炸 · 补给 · 吹号插旗 (Three.js)
 import * as THREE from 'three';
 import { buildWorld, groundH, makeSoldier, poseSoldier, makeViewGun, makeRedFlag, blobTex, bloodTex, radialTex, BUILD } from './core.js';
+import { equipRealGuns } from './guns.js';
 import { makeTruck, makeTank, makeGunEmplacement, makeCrate, makeMedTent, makeMine, makeIceLake } from './entities.js';
 
 /* ---------------- 战役 ---------------- */
@@ -176,12 +177,15 @@ function start(Q, S) {
   const WPN = [
     { name: '莫辛-纳甘步枪', mag: 5, auto: false, cd: .85, adsFov: 28, spread: .002, reach: 700, gun: 'sniper' },
     { name: 'AKM', mag: 100, auto: true, cd: .105, adsFov: 52, spread: .016, reach: 320, gun: 'akm' },
-    { name: '大刀', melee: true, cd: .5, reach: 2.8, dmg: 100 },
+    { name: '大刀', melee: true, cd: .5, reach: 2.8, dmg: 100, gun: 'knife' },
     { name: '拳头', melee: true, cd: .42, reach: 2.1, dmg: 34 },
   ];
-  let wpn = 0, mag = [5, 100, 0, 0], grenades = 1, fireCd = 0, ads = 0, wantAds = false, firing = false, dead = false, win = false, paused = false, started = false, inVeh = null;
+  let wpn = 0, mag = [5, 100, 0, 0], grenades = 1, fireCd = 0, ads = 0, wantAds = location.search.includes('autoads'), firing = false, dead = false, win = false, paused = false, started = false, inVeh = null;
   const viewGuns = WPN.map(w => { const g = makeViewGun(w.gun); g.visible = false; camera.add(g); return g; });
   const greView = makeViewGun('grenade'); greView.visible = false; greView.scale.setScalar(1.5); camera.add(greView);
+  // 异步替换为用户授权的真实 PBR 枪械（莫辛-纳甘 / AKM / 出鞘大刀）；拳头、手雷保留程序化
+  equipRealGuns({ mosin: viewGuns[0], akm: viewGuns[1], knife: viewGuns[2] }, W.renderer, scene)
+    .then(() => { const wp = parseInt(new URLSearchParams(location.search).get('wpn'), 10); if (wp >= 0) setWpn(wp); });
   setWpn(0);
   const muzzleWorld = new THREE.Vector3();
 
@@ -571,7 +575,9 @@ function start(Q, S) {
       greView.visible = greHeld;
       const vg = greHeld ? greView : viewGuns[wpn];
       const bob = Math.sin(moveT) * .012 * Math.min(1, wish.length());
-      vg.position.set(greHeld ? .05 : .26 - .26 * ads, greHeld ? -.18 : -.24 + .12 * ads + bob, greHeld ? -.5 : -.55 + recoil * .6);
+      if (greHeld) vg.position.set(.05, -.18, -.5);
+      else if (vg.userData.real) vg.position.set(.24 - .24 * ads, -.20 - .16 * ads + bob, -.5 - 1.05 * ads + recoil * .5);
+      else vg.position.set(.26 - .26 * ads, -.24 + .12 * ads + bob, -.55 + recoil * .6);
       vg.rotation.set(bob * .6, 0, 0);
     }
 

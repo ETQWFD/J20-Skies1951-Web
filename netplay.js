@@ -2,6 +2,7 @@
 // 传输：与页面同源的 WebSocket(/ws)，由 server.py 提供中继。GitHub Pages 无 /ws，须用局域网服务器。
 import * as THREE from 'three';
 import { buildWorld, groundH, makeSoldier, poseSoldier, makeViewGun, bloodTex, BUILD } from './core.js';
+import { equipRealGuns } from './guns.js';
 
 const $ = id => document.getElementById(id);
 window.__errs = [];
@@ -122,6 +123,7 @@ function beginClient() {
   scene = W.scene; camera = W.camera; cv = document.getElementById('cv');
   camera.rotation.order = 'YXZ';
   vg = makeViewGun('sniper'); camera.add(vg); window._vg = vg;
+  equipRealGuns({ mosin: vg }, W.renderer, scene);
 
   // 美军 mesh（主机权威状态；客户端由快照插值）
   enemies = [];
